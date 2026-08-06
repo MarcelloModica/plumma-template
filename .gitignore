@@ -1,0 +1,54 @@
+HELP.md
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+application-local.properties
+*.log
+.DS_Store
+
+## Frontend
+**/node_modules/
+**/dist/
+.tanstack/
+.env
+.env.*
+!.env.example
+
+## IntelliJ IDEA
+.idea
+*.iws
+*.iml
+*.ipr
+
+## VS Code
+.vscode/
+
+## STS
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+## NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+## Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+tfplan
+plan.json
+crash.log
+# I tfvars di stage sono committati (senza segreti); ignora eventuali override locali
+00-IaaC/environments/*.local.tfvars

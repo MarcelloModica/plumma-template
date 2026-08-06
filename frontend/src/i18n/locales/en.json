@@ -1,0 +1,63 @@
+{
+  "common": {
+    "appName": "Plumma Template",
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "loading": "Loading...",
+    "error": "Something went wrong"
+  },
+  "language": {
+    "label": "Language",
+    "italian": "Italiano",
+    "english": "English",
+    "short": {
+      "it": "IT",
+      "en": "EN"
+    }
+  },
+  "login": {
+    "title": "Sign in",
+    "username": "Username",
+    "usernamePlaceholder": "Your username",
+    "password": "Password",
+    "passwordPlaceholder": "Your password",
+    "submit": "Sign in",
+    "submitting": "Signing in...",
+    "invalidCredentials": "Invalid credentials",
+    "networkError": "Unable to reach the server",
+    "errorGeneric": "Sign in failed, please retry",
+    "or": "or",
+    "google": "Google",
+    "microsoft": "Microsoft 365",
+    "register": "Register"
+  },
+  "register": {
+    "title": "Registration",
+    "description": "Self-service registration is not implemented in this template. Customize the registerMe page with your own flow.",
+    "back": "Back to login"
+  },
+  "header": {
+    "defaultUser": "User",
+    "logout": "Log out",
+    "goToDashboard": "Go to dashboard",
+    "userMenu": "{{name}} user menu"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome, {{name}}",
+    "description": "Example CRUD wired to the backend (Item entity).",
+    "empty": "No items yet. Add one below.",
+    "colName": "Name",
+    "colDescription": "Description",
+    "colQuantity": "Quantity",
+    "colActions": "Actions",
+    "namePlaceholder": "Name",
+    "descPlaceholder": "Description",
+    "qtyPlaceholder": "Qty",
+    "add": "Add",
+    "loadError": "Failed to load items"
+  }
+}

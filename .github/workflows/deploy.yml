@@ -1,0 +1,235 @@
+name: Deploy to Elastic Beanstalk
+
+# Pipeline self-contained (nessun reusable workflow esterno):
+#   build Maven (frontend+backend -> WAR)  ->  Terraform (infra per stage)  ->  deploy WAR su EB.
+#
+# Stage:
+#   - dev  : ambiente SingleInstance (economico, non bilanciato)   [push su develop]
+#   - prod : ambiente LoadBalanced (ALB + WAF + scaling)           [push su main/master]
+#   - local: solo sviluppo, non passa da qui.
+#
+# Secrets richiesti (Settings -> Secrets and variables -> Actions):
+#   AWS_ROLE_TO_ASSUME  -> ARN del ruolo OIDC assumibile da GitHub nell'account target
+#   JDBC_PASSWORD       -> password del DB (TF_VAR_jdbc_password)
+#   JWT_SECRET          -> segreto JWT >= 32 byte (TF_VAR_jwt_secret)
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "Stage da deployare"
+        type: choice
+        options: [dev, prod]
+        default: dev
+      plan_only:
+        description: "Esegui solo terraform plan (nessun apply/deploy)"
+        type: boolean
+        default: false
+      allow_destroy:
+        description: "Consenti azioni distruttive nel plan (usare con cautela)"
+        type: boolean
+        default: false
+  push:
+    branches: [main, master, develop]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-${{ github.event.inputs.stage || (github.ref_name == 'develop' && 'dev' || 'prod') }}
+      cancel-in-progress: false
+    env:
+      TERRAFORM_VERSION: "1.11.3"
+      JAVA_VERSION: "21"
+      NODE_VERSION: "22.18.0"
+      TF_VAR_jdbc_password: ${{ secrets.JDBC_PASSWORD }}
+      TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve stage
+        id: stage
+        run: |
+          if [ -n "${{ github.event.inputs.stage }}" ]; then
+            STAGE="${{ github.event.inputs.stage }}"
+          elif [ "${{ github.ref_name }}" = "develop" ]; then
+            STAGE="dev"
+          else
+            STAGE="prod"
+          fi
+          echo "stage=$STAGE" >> "$GITHUB_OUTPUT"
+          echo "Stage risolto: $STAGE"
+
+      - name: Read region from tfvars
+        id: cfg
+        run: |
+          TFVARS="00-IaaC/environments/${{ steps.stage.outputs.stage }}.tfvars"
+          REGION=$(grep -E '^\s*aws_region' "$TFVARS" | head -1 | sed -E 's/.*=\s*"([^"]+)".*/\1/')
+          echo "region=$REGION" >> "$GITHUB_OUTPUT"
+          echo "Region: $REGION"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build WAR (frontend + backend)
+        run: ./mvnw -B -ntp clean package -DskipTests
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ steps.cfg.outputs.region }}
+
+      - name: Resolve account, buckets, solution stack
+        id: aws
+        run: |
+          set -euo pipefail
+          REGION="${{ steps.cfg.outputs.region }}"
+          STAGE="${{ steps.stage.outputs.stage }}"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          STATE_BUCKET="plumma-template-tfstate-${ACCOUNT_ID}-${REGION}"
+          ARTIFACT_BUCKET="plumma-template-artifacts-${ACCOUNT_ID}-${REGION}"
+
+          for B in "$STATE_BUCKET" "$ARTIFACT_BUCKET"; do
+            if ! aws s3api head-bucket --bucket "$B" 2>/dev/null; then
+              echo "Creazione bucket $B"
+              if [ "$REGION" = "us-east-1" ]; then
+                aws s3api create-bucket --bucket "$B" --region "$REGION"
+              else
+                aws s3api create-bucket --bucket "$B" --region "$REGION" \
+                  --create-bucket-configuration LocationConstraint="$REGION"
+              fi
+              aws s3api put-bucket-versioning --bucket "$B" \
+                --versioning-configuration Status=Enabled
+            fi
+          done
+
+          # Solution stack piu' recente per Java 21 / Tomcat 10 nella regione.
+          STACK=$(aws elasticbeanstalk list-available-solution-stacks \
+            --query "SolutionStacks[?contains(@, 'running Tomcat 10') && contains(@, 'Corretto 21')] | [0]" \
+            --output text --region "$REGION")
+          if [ -z "$STACK" ] || [ "$STACK" = "None" ]; then
+            echo "Nessun solution stack Tomcat10/Java21 trovato in $REGION" >&2
+            exit 1
+          fi
+
+          echo "account_id=$ACCOUNT_ID" >> "$GITHUB_OUTPUT"
+          echo "state_bucket=$STATE_BUCKET" >> "$GITHUB_OUTPUT"
+          echo "artifact_bucket=$ARTIFACT_BUCKET" >> "$GITHUB_OUTPUT"
+          echo "solution_stack=$STACK" >> "$GITHUB_OUTPUT"
+          echo "Solution stack: $STACK"
+
+      - name: Ensure EB EC2 instance profile
+        run: |
+          set -euo pipefail
+          ROLE="aws-elasticbeanstalk-ec2-role"
+          if ! aws iam get-instance-profile --instance-profile-name "$ROLE" >/dev/null 2>&1; then
+            echo "Creazione instance profile condiviso $ROLE"
+            aws iam create-role --role-name "$ROLE" \
+              --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+            for P in AWSElasticBeanstalkWebTier AWSElasticBeanstalkWorkerTier AWSElasticBeanstalkMulticontainerDocker; do
+              aws iam attach-role-policy --role-name "$ROLE" \
+                --policy-arn "arn:aws:iam::aws:policy/$P" || true
+            done
+            aws iam create-instance-profile --instance-profile-name "$ROLE"
+            aws iam add-role-to-instance-profile --instance-profile-name "$ROLE" --role-name "$ROLE"
+            sleep 10
+          fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Init
+        working-directory: 00-IaaC
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ steps.aws.outputs.state_bucket }}" \
+            -backend-config="key=beanstalk/${{ steps.stage.outputs.stage }}.tfstate" \
+            -backend-config="region=${{ steps.cfg.outputs.region }}"
+
+      - name: Terraform Plan
+        working-directory: 00-IaaC
+        run: |
+          terraform plan -input=false -out=tfplan \
+            -var-file="environments/${{ steps.stage.outputs.stage }}.tfvars" \
+            -var="solution_stack_name=${{ steps.aws.outputs.solution_stack }}"
+
+      - name: Destructive gate
+        if: ${{ github.event.inputs.allow_destroy != 'true' }}
+        working-directory: 00-IaaC
+        run: |
+          set -euo pipefail
+          terraform show -json tfplan > plan.json
+          DESTROY=$(python3 -c "import json;p=json.load(open('plan.json'));print(sum(1 for c in p.get('resource_changes',[]) if set(c['change']['actions']) & {'delete'}))")
+          if [ "$DESTROY" -gt 0 ]; then
+            echo "Apply BLOCCATO: il plan distruggerebbe/ricreerebbe $DESTROY risorse."
+            echo "Rilancia con allow_destroy=true solo se e' voluto e sicuro."
+            terraform show tfplan | grep -E "will be destroyed|must be replaced" || true
+            exit 1
+          fi
+
+      - name: Terraform Apply
+        if: ${{ github.event.inputs.plan_only != 'true' }}
+        working-directory: 00-IaaC
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Deploy WAR to Elastic Beanstalk
+        if: ${{ github.event.inputs.plan_only != 'true' }}
+        run: |
+          set -euo pipefail
+          REGION="${{ steps.cfg.outputs.region }}"
+          STAGE="${{ steps.stage.outputs.stage }}"
+          APP=$(cd 00-IaaC && terraform output -raw application_name)
+          ENV=$(cd 00-IaaC && terraform output -raw environment_name)
+          BUCKET="${{ steps.aws.outputs.artifact_bucket }}"
+          WAR="target/plumma-template.war"
+
+          VERSION="${STAGE}-${GITHUB_SHA::8}-${GITHUB_RUN_NUMBER}"
+          KEY="plumma-template/${VERSION}.war"
+
+          echo "Upload $WAR -> s3://$BUCKET/$KEY"
+          aws s3 cp "$WAR" "s3://$BUCKET/$KEY" --region "$REGION"
+
+          aws elasticbeanstalk create-application-version \
+            --application-name "$APP" \
+            --version-label "$VERSION" \
+            --source-bundle S3Bucket="$BUCKET",S3Key="$KEY" \
+            --region "$REGION" >/dev/null
+
+          echo "Attendo che la application version sia PROCESSED..."
+          for i in $(seq 1 30); do
+            STATUS=$(aws elasticbeanstalk describe-application-versions \
+              --application-name "$APP" --version-labels "$VERSION" \
+              --query "ApplicationVersions[0].Status" --output text --region "$REGION")
+            [ "$STATUS" = "PROCESSED" ] && break
+            [ "$STATUS" = "FAILED" ] && { echo "Application version FAILED"; exit 1; }
+            sleep 10
+          done
+
+          echo "Update environment $ENV -> $VERSION"
+          aws elasticbeanstalk update-environment \
+            --environment-name "$ENV" \
+            --version-label "$VERSION" \
+            --region "$REGION" >/dev/null
+
+          echo "Attendo che l'ambiente torni Ready..."
+          aws elasticbeanstalk wait environment-updated \
+            --environment-names "$ENV" --region "$REGION"
+          echo "Deploy completato."

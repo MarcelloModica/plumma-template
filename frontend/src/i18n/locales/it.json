@@ -1,0 +1,63 @@
+{
+  "common": {
+    "appName": "Plumma Template",
+    "close": "Chiudi",
+    "cancel": "Annulla",
+    "confirm": "Conferma",
+    "save": "Salva",
+    "delete": "Elimina",
+    "loading": "Caricamento...",
+    "error": "Si è verificato un errore"
+  },
+  "language": {
+    "label": "Lingua",
+    "italian": "Italiano",
+    "english": "English",
+    "short": {
+      "it": "IT",
+      "en": "EN"
+    }
+  },
+  "login": {
+    "title": "Accedi",
+    "username": "Username",
+    "usernamePlaceholder": "Il tuo username",
+    "password": "Password",
+    "passwordPlaceholder": "La tua password",
+    "submit": "Accedi",
+    "submitting": "Accesso in corso...",
+    "invalidCredentials": "Credenziali non valide",
+    "networkError": "Impossibile contattare il server",
+    "errorGeneric": "Accesso non riuscito, riprova",
+    "or": "oppure",
+    "google": "Google",
+    "microsoft": "Microsoft 365",
+    "register": "Registrati"
+  },
+  "register": {
+    "title": "Registrazione",
+    "description": "La registrazione self-service non è implementata in questo template. Personalizza la pagina registerMe con il tuo flusso.",
+    "back": "Torna al login"
+  },
+  "header": {
+    "defaultUser": "Utente",
+    "logout": "Esci",
+    "goToDashboard": "Vai alla dashboard",
+    "userMenu": "Menu utente di {{name}}"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Benvenuto, {{name}}",
+    "description": "Esempio di CRUD collegato al backend (entità Item).",
+    "empty": "Nessun item. Aggiungine uno qui sotto.",
+    "colName": "Nome",
+    "colDescription": "Descrizione",
+    "colQuantity": "Quantità",
+    "colActions": "Azioni",
+    "namePlaceholder": "Nome",
+    "descPlaceholder": "Descrizione",
+    "qtyPlaceholder": "Qtà",
+    "add": "Aggiungi",
+    "loadError": "Errore nel caricamento degli item"
+  }
+}
