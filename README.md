@@ -25,21 +25,29 @@ plumma-template/
 
 ## Sviluppo locale (stage `local`)
 
-Serve un DB MariaDB locale (o cambia il connettore, vedi `backend/README.md`).
+Il profilo `local` gira **senza database esterno**: usa un H2 in-memory, così l'app parte
+subito dopo il clone. Utente pronto all'uso: **admin / admin**.
 
-Backend (porta 8080):
+Modo più rapido (un solo processo: backend + SPA sulla stessa porta 8080):
 
 ```bash
-./mvnw -pl backend spring-boot:run
+./mvnw clean package
+java -Dspring.profiles.active=local -jar backend/target/plumma-template.war
 ```
 
-Frontend con hot-reload (porta 3000, proxa `/api`,`/token`,`/services` su 8080):
+Poi apri http://localhost:8080 e fai login con **admin / admin** → welcome page.
+
+In alternativa, con hot-reload del frontend (backend su 8080, frontend su 3000):
 
 ```bash
+# terminale 1 — backend
+./mvnw -pl backend -am spring-boot:run -Dspring-boot.run.profiles=local
+# terminale 2 — frontend (proxa /api,/token,/services su 8080)
 cd frontend && npm install && npm run dev
 ```
 
-Login demo di default: **demo / demo1234** (vedi `app.demo-user.*` in `backend/src/main/resources/application.properties`).
+> H2 è in-memory: i dati si azzerano ad ogni riavvio. Per usare un DB reale in locale, avvia
+> un MariaDB e lancia senza il profilo `local` (vedi `backend/README.md`).
 
 ## Build unico (WAR con frontend incluso)
 

@@ -41,7 +41,7 @@ export function Header({ onLogout }: HeaderProps) {
   return (
     <header className="flex items-center justify-between border-b bg-card px-6 py-3.5">
       <Link
-        to="/dashboard"
+        to="/welcome"
         className="font-semibold text-lg tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
         aria-label={t('header.goToDashboard')}
       >

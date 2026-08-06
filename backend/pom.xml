@@ -91,11 +91,17 @@
             </exclusions>
         </dependency>
 
-        <!-- Connettore JDBC. Per usare un altro DB, sostituisci questa dipendenza
-             e il driver-class-name / url in application.properties. -->
+        <!-- Connettore JDBC per dev/prod. Per usare un altro DB, sostituisci questa
+             dipendenza e il driver-class-name / url in application.properties. -->
         <dependency>
             <groupId>org.mariadb.jdbc</groupId>
             <artifactId>mariadb-java-client</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- DB in-memory per il profilo 'local': l'app parte senza DB esterno. -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
 

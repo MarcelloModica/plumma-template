@@ -3,7 +3,8 @@ target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
-application-local.properties
+# Override personale a root (non committato); il profilo 'local' committato sta in config/
+/backend/src/main/resources/application-local.properties
 *.log
 .DS_Store
 

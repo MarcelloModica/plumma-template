@@ -168,7 +168,7 @@ export class AuthService {
     return roles.includes(role)
   }
 
-  static getLandingPath(): '/dashboard' | '/registerMe' | '/login' {
+  static getLandingPath(): '/welcome' | '/registerMe' | '/login' {
     if (AuthService.hasRole('registerme')) {
       return '/registerMe'
     }
@@ -178,7 +178,7 @@ export class AuthService {
       AuthService.hasRole('manager') ||
       AuthService.hasRole('user')
     ) {
-      return '/dashboard'
+      return '/welcome'
     }
 
     return '/login'

@@ -45,6 +45,13 @@
     "goToDashboard": "Go to dashboard",
     "userMenu": "{{name}} user menu"
   },
+  "welcome": {
+    "title": "Welcome, {{name}}",
+    "subtitle": "The application started successfully 🎉",
+    "running": "Login works and the backend is up (local profile, in-memory H2 DB: no external database).",
+    "role": "Role",
+    "goToDemo": "Go to CRUD demo"
+  },
   "dashboard": {
     "title": "Dashboard",
     "welcome": "Welcome, {{name}}",

@@ -45,6 +45,13 @@
     "goToDashboard": "Vai alla dashboard",
     "userMenu": "Menu utente di {{name}}"
   },
+  "welcome": {
+    "title": "Benvenuto, {{name}}",
+    "subtitle": "L'applicazione è partita correttamente 🎉",
+    "running": "Login funzionante e backend attivo (profilo local, DB H2 in memoria: nessun database esterno).",
+    "role": "Ruolo",
+    "goToDemo": "Vai alla demo CRUD"
+  },
   "dashboard": {
     "title": "Dashboard",
     "welcome": "Benvenuto, {{name}}",
