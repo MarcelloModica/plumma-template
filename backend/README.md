@@ -38,16 +38,16 @@ dagli env var iniettati da Terraform.
 
 ## Profili
 
-| Profilo | DB | ddl-auto | Swagger | Uso |
-|---------|----|----------|---------|-----|
-| `local` | **H2 in-memory** (nessun DB esterno) | `create-drop` | on | sviluppo locale, avvio dopo il clone |
-| _default_ | MariaDB (`localhost:3306`) | `update` | on | locale con DB reale |
-| `dev` | MariaDB via env | `update` | on | EB SingleInstance |
-| `prod` | MariaDB via env | `validate` | off | EB LoadBalanced |
+| Profilo | Quando | DB | ddl-auto | Swagger |
+|---------|--------|----|----------|---------|
+| `local` **(default)** | nessun env impostato (RUN da IDE, `java -jar`) | **H2 in-memory** | `create-drop` | on |
+| `dev` | `SPRING_PROFILES_ACTIVE=dev` (EB SingleInstance) | MariaDB via env | `update` | on |
+| `prod` | `SPRING_PROFILES_ACTIVE=prod` (EB LoadBalanced) | MariaDB via env | `validate` | off |
 
-Con il profilo `local` l'utente pronto è **admin / admin**; con gli altri profili l'utente demo
-di default è **demo / demo1234** (`app.demo-user.*`). Attivazione del profilo local:
-`SPRING_PROFILES_ACTIVE=local` oppure `-Dspring.profiles.active=local`.
+Il profilo attivo è `${SPRING_PROFILES_ACTIVE:local}`: **se non imposti nulla è `local`** (H2, utente
+**admin / admin**), così l'app parte dopo il clone; in dev/prod l'env var (iniettata da Terraform) ha
+la precedenza. Con `dev`/`prod` l'utente demo di default è **demo / demo1234** (`app.demo-user.*`).
+Per usare MariaDB in locale: avvia il DB e lancia con `SPRING_PROFILES_ACTIVE=dev`.
 
 Il profilo attivo è scelto per-ambiente da `SPRING_PROFILES_ACTIVE` (iniettato da Terraform).
 In locale puoi creare `application-local.properties` per sovrascrivere valori (es. password DB).

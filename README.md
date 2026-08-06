@@ -25,29 +25,31 @@ plumma-template/
 
 ## Sviluppo locale (stage `local`)
 
-Il profilo `local` gira **senza database esterno**: usa un H2 in-memory, così l'app parte
-subito dopo il clone. Utente pronto all'uso: **admin / admin**.
+Il profilo `local` è **attivo di default** (senza impostare nulla) e gira **senza database esterno**:
+usa un H2 in-memory, così l'app parte subito dopo il clone. Utente pronto all'uso: **admin / admin**.
 
-Modo più rapido (un solo processo: backend + SPA sulla stessa porta 8080):
+- **IntelliJ / IDE**: apri il progetto e premi **RUN** su `PlummaTemplateApplication` → parte da solo.
+- **Da riga di comando** (un solo processo: backend + SPA su 8080):
 
 ```bash
 ./mvnw clean package
-java -Dspring.profiles.active=local -jar backend/target/plumma-template.war
+java -jar backend/target/plumma-template.war
 ```
 
 Poi apri http://localhost:8080 e fai login con **admin / admin** → welcome page.
 
-In alternativa, con hot-reload del frontend (backend su 8080, frontend su 3000):
+Con hot-reload del frontend (backend su 8080, frontend su 3000):
 
 ```bash
-# terminale 1 — backend
-./mvnw -pl backend -am spring-boot:run -Dspring-boot.run.profiles=local
+# terminale 1 — backend (profilo local di default)
+./mvnw -pl backend -am spring-boot:run
 # terminale 2 — frontend (proxa /api,/token,/services su 8080)
 cd frontend && npm install && npm run dev
 ```
 
-> H2 è in-memory: i dati si azzerano ad ogni riavvio. Per usare un DB reale in locale, avvia
-> un MariaDB e lancia senza il profilo `local` (vedi `backend/README.md`).
+> H2 è in-memory: i dati si azzerano a ogni riavvio. Per usare un **DB reale** in locale, avvia un
+> MariaDB e lancia con `SPRING_PROFILES_ACTIVE=dev` (usa i default MariaDB su `localhost:3306`),
+> vedi `backend/README.md`.
 
 ## Build unico (WAR con frontend incluso)
 
@@ -113,14 +115,18 @@ cd plumma-template
 
 ## 2. Sviluppo in locale (stage `local`)
 
-Il profilo `local` parte **senza alcun database esterno** (usa un H2 in-memory) con un utente già
-pronto **admin / admin**: è il modo più veloce per verificare che tutto funzioni subito dopo il clone.
+Il profilo `local` è **attivo di default** e parte **senza alcun database esterno** (H2 in-memory)
+con un utente già pronto **admin / admin**: è il modo più veloce per verificare che tutto funzioni
+subito dopo il clone. Nessuna configurazione richiesta.
 
-### 2.1 Avvio rapido — un solo processo (backend + SPA su :8080)
+### 2.1 Avvio rapido
+
+- **IntelliJ / IDE**: apri il progetto e premi **RUN** su `PlummaTemplateApplication`.
+- **Riga di comando** (un solo processo, backend + SPA su :8080):
 
 ```bash
 ./mvnw clean package
-java -Dspring.profiles.active=local -jar backend/target/plumma-template.war
+java -jar backend/target/plumma-template.war
 ```
 
 Apri http://localhost:8080 e fai login con **admin / admin** → welcome page.
@@ -129,8 +135,8 @@ Apri http://localhost:8080 e fai login con **admin / admin** → welcome page.
 ### 2.2 Sviluppo con hot-reload del frontend
 
 ```bash
-# terminale 1 — backend (H2, profilo local)
-./mvnw -pl backend -am spring-boot:run -Dspring-boot.run.profiles=local
+# terminale 1 — backend (profilo local di default)
+./mvnw -pl backend -am spring-boot:run
 # terminale 2 — frontend su :3000 (proxa /api,/token,/services su :8080)
 cd frontend && npm install && npm run dev
 ```
@@ -139,16 +145,16 @@ Apri http://localhost:3000 e fai login con **admin / admin**.
 
 ### 2.3 (opzionale) DB reale in locale invece di H2
 
-Per provare con MariaDB (come in dev/prod), avvia un DB e lancia **senza** il profilo `local`:
+Per provare con MariaDB (come in dev/prod), avvia un DB e lancia con `SPRING_PROFILES_ACTIVE=dev`
+(i default puntano a `localhost:3306`, root/root; l'utente demo diventa **demo / demo1234**):
 
 ```bash
 docker run --name plumma-db -e MARIADB_ROOT_PASSWORD=root \
   -e MARIADB_DATABASE=plumma_template -p 3306:3306 -d mariadb:11
-./mvnw -pl backend -am spring-boot:run
+SPRING_PROFILES_ACTIVE=dev ./mvnw -pl backend -am spring-boot:run
 ```
 
-I default puntano a `localhost:3306` (root/root) e l'utente demo diventa **demo / demo1234**.
-Per override personali crea `backend/src/main/resources/application-local.properties` (git-ignorato).
+Per override personali puoi creare `backend/src/main/resources/application-local.properties` (git-ignorato).
 
 ### 2.4 (opzionale) Login Google / Microsoft 365 in locale
 
