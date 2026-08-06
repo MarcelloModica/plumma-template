@@ -113,57 +113,48 @@ cd plumma-template
 
 ## 2. Sviluppo in locale (stage `local`)
 
-### 2.1 Avvia un database
+Il profilo `local` parte **senza alcun database esterno** (usa un H2 in-memory) con un utente già
+pronto **admin / admin**: è il modo più veloce per verificare che tutto funzioni subito dopo il clone.
 
-Serve un MariaDB con uno schema `plumma_template`. Con Docker:
+### 2.1 Avvio rapido — un solo processo (backend + SPA su :8080)
+
+```bash
+./mvnw clean package
+java -Dspring.profiles.active=local -jar backend/target/plumma-template.war
+```
+
+Apri http://localhost:8080 e fai login con **admin / admin** → welcome page.
+(I dati vivono in RAM e si azzerano a ogni riavvio.)
+
+### 2.2 Sviluppo con hot-reload del frontend
+
+```bash
+# terminale 1 — backend (H2, profilo local)
+./mvnw -pl backend -am spring-boot:run -Dspring-boot.run.profiles=local
+# terminale 2 — frontend su :3000 (proxa /api,/token,/services su :8080)
+cd frontend && npm install && npm run dev
+```
+
+Apri http://localhost:3000 e fai login con **admin / admin**.
+
+### 2.3 (opzionale) DB reale in locale invece di H2
+
+Per provare con MariaDB (come in dev/prod), avvia un DB e lancia **senza** il profilo `local`:
 
 ```bash
 docker run --name plumma-db -e MARIADB_ROOT_PASSWORD=root \
   -e MARIADB_DATABASE=plumma_template -p 3306:3306 -d mariadb:11
+./mvnw -pl backend -am spring-boot:run
 ```
 
-I default in `application.properties` puntano già a `localhost:3306`, utente `root`, password `root`.
-Per sovrascriverli senza toccare il file versionato, crea
-`backend/src/main/resources/application-local.properties` (è git-ignorato):
-
-```properties
-spring.datasource.url=jdbc:mariadb://localhost:3306/plumma_template
-spring.datasource.username=root
-spring.datasource.password=root
-```
-
-### 2.2 Avvia il backend (porta 8080)
-
-```bash
-./mvnw -pl backend spring-boot:run
-```
-
-Al primo avvio Hibernate crea le tabelle (`ddl-auto=update`) e viene creato l'**utente demo**
-`demo / demo1234` (configurabile con `app.demo-user.*`).
-
-### 2.3 Avvia il frontend (porta 3000, hot-reload)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Apri http://localhost:3000 e fai login con **demo / demo1234**. Il dev server inoltra
-`/api`, `/token`, `/services` al backend su 8080.
+I default puntano a `localhost:3306` (root/root) e l'utente demo diventa **demo / demo1234**.
+Per override personali crea `backend/src/main/resources/application-local.properties` (git-ignorato).
 
 ### 2.4 (opzionale) Login Google / Microsoft 365 in locale
 
 Registra le app sui provider e imposta gli env `OAUTH_*` (vedi `backend/README.md`).
 Redirect URI da registrare: `http://localhost:8080/api/public/oauth/{google|azure}/callback`.
-Senza configurazione, i pulsanti social restituiscono "not configured" (il login user/password funziona comunque).
-
-### 2.5 Build completa in locale (facoltativa)
-
-```bash
-./mvnw clean package
-java -jar backend/target/plumma-template.war
-```
+Senza configurazione i pulsanti social restituiscono "not configured" (il login user/password funziona comunque).
 
 ---
 
@@ -194,6 +185,29 @@ Al merge su `develop` parte in automatico il deploy in **dev**.
 ## 4. Setup una-tantum per il deploy **(prima volta)**
 
 Prima del primissimo deploy vanno preparate tre cose: i prerequisiti AWS, i GitHub Secrets e i file `*.tfvars`.
+
+### Dove vanno i parametri (riepilogo)
+
+Ci sono **solo due posti** da compilare — nient'altro va toccato (`main.tf`, `variables.tf`,
+`waf.tf` sono generici):
+
+| Dove | Cosa ci va | Segreti? |
+|------|-----------|----------|
+| **File** `00-IaaC/environments/dev.tfvars` e `prod.tfvars` | regione, nomi, VPC, subnet, certificato (prod), `jdbc_url`, `jdbc_username`, sizing | No (committabili) |
+| **GitHub Secrets** (Settings → Secrets and variables → Actions) | `AWS_ROLE_TO_ASSUME`, `JDBC_PASSWORD`, `JWT_SECRET` | Sì (mai nei file) |
+
+### Cosa viene creato al primo deploy
+
+Al **primo** run del workflow, Terraform fa `apply` e **crea da zero** in AWS:
+
+- l'**Elastic Beanstalk Application + Environment** (in prod anche **ALB + WAF + autoscaling**);
+- automaticamente, se mancano: i **bucket S3** di stato/artefatti e l'instance profile `aws-elasticbeanstalk-ec2-role`.
+
+Ai run successivi Terraform **aggiorna** invece di ricreare.
+
+> ⚠️ **Il database NON viene creato dal template**: è "esterno". L'ambiente EB viene creato, ma il
+> DB deve **già esistere** ed essere raggiungibile — l'app ci si collega tramite `jdbc_url` +
+> `JDBC_PASSWORD`. Prepara un DB per dev e uno per prod prima del deploy.
 
 ### 4.1 (prima volta) Prerequisiti sull'account AWS
 
@@ -307,7 +321,34 @@ clone → branch feature → sviluppo locale (DB + backend + frontend)
       → verifica su dev → PR develop→main → deploy PROD automatico
 ```
 
-## 9. Checklist "prima volta"
+## 9. Trasferire il repo nell'organizzazione **PLUMMA-PROJECT**
+
+Al termine, il repository va spostato sotto l'organizzazione GitHub **PLUMMA-PROJECT**.
+
+**Come trasferirlo** (serve essere owner del repo e avere i permessi nell'org):
+GitHub → repo **Settings → General → Danger Zone → Transfer ownership** → nuovo owner
+`PLUMMA-PROJECT`. In alternativa, crea il repo direttamente dentro l'org e fai `git push`.
+
+**Dopo il trasferimento aggiorna** (altrimenti i deploy si rompono):
+
+1. **Remote locale**:
+   ```bash
+   git remote set-url origin https://github.com/PLUMMA-PROJECT/plumma-template.git
+   ```
+2. **Trust policy del ruolo OIDC in AWS** — la condizione `token.actions.githubusercontent.com:sub`
+   punta al percorso `repo:<owner>/<repo>:*`: cambiala da
+   `repo:MarcelloModica/plumma-template:*` a **`repo:PLUMMA-PROJECT/plumma-template:*`**,
+   altrimenti l'assunzione del ruolo fallisce con *AccessDenied*.
+3. **Secrets**: i secret *di repo* seguono il repo nel trasferimento; se usi secret *di
+   organizzazione*, assicurati che il repo vi abbia accesso. Ricontrolla `AWS_ROLE_TO_ASSUME`,
+   `JDBC_PASSWORD`, `JWT_SECRET`.
+4. **Actions / branch protection / Environments**: verifica che siano abilitati secondo le policy dell'org.
+
+> GitHub mantiene un redirect dal vecchio URL, ma è meglio aggiornare comunque i remote e i riferimenti.
+
+---
+
+## 10. Checklist "prima volta"
 
 - [ ] Ruolo OIDC AWS creato → ARN
 - [ ] VPC + subnet individuate; certificato ACM per prod
@@ -315,4 +356,6 @@ clone → branch feature → sviluppo locale (DB + backend + frontend)
 - [ ] GitHub Secrets: `AWS_ROLE_TO_ASSUME`, `JDBC_PASSWORD`, `JWT_SECRET`
 - [ ] `dev.tfvars` e `prod.tfvars` compilati e committati
 - [ ] Primo deploy dev in `plan_only`, poi apply
+- [ ] Promozione in prod via merge su `main`/`master`
+- [ ] Repo trasferito nell'org **PLUMMA-PROJECT** e trust policy OIDC aggiornata
 - [ ] (Sicurezza) segreti reali ruotati, `app.demo-user.enabled=false` in prod se non serve
